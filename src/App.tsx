@@ -2,15 +2,16 @@ import {
   Bodies,
   Body,
   Engine,
+  Events,
   Render,
   Runner,
   Sleeping,
   World,
-  Events,
 } from "matter-js";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AddCurentFruit } from "./AddCurentFruit";
 import { Fruits } from "./Fruits";
+import { addScore, getBestScores } from "./ScoreStorage";
 
 function App() {
   const sceneRef = useRef<HTMLDivElement>(null);
@@ -19,6 +20,15 @@ function App() {
   const fruitRef = useRef<Body | null>(null);
   const intervalRef = useRef<number | null>(null);
   const disabledRef = useRef(false);
+  const [score, setScore] = useState(0);
+  const [bestScores, setBestScores] = useState<
+    { pseudo: string; score: number }[]
+  >(getBestScores());
+  const scoreRef = useRef(0);
+
+  useEffect(() => {
+    scoreRef.current = score;
+  }, [score]);
 
   useEffect(() => {
     const engine = Engine.create();
@@ -133,6 +143,8 @@ function App() {
             (fruit) => fruit.name === collision.bodyA.label
           );
 
+          setScore((prevScore) => prevScore + Fruits[index].points);
+
           if (index === Fruits.length - 1) {
             return;
           }
@@ -162,7 +174,21 @@ function App() {
             collision.bodyB.label === "topLine") &&
           !disabledRef.current
         ) {
-          alert("Game Over");
+          const bestScores = getBestScores();
+          const minScore =
+            bestScores.length < 5 ? 0 : bestScores[bestScores.length - 1].score;
+          if (scoreRef.current > minScore || bestScores.length < 5) {
+            const pseudo =
+              prompt(
+                "Bravo ! Tu entres dans le top 5 ! Entre ton pseudo (8 caractères max) :"
+              )?.slice(0, 8) || "Anonyme";
+            const updatedScores = addScore({ pseudo, score: scoreRef.current });
+            setBestScores(updatedScores);
+            alert("Félicitations, tu es dans le classement !");
+          } else {
+            alert("Game Over");
+          }
+          resetGame();
         }
       });
     });
@@ -178,7 +204,112 @@ function App() {
     };
   }, []);
 
-  return <div ref={sceneRef} />;
+  const resetGame = () => {
+    setScore(0);
+
+    const world = engineRef.current?.world;
+    if (world) {
+      const staticBodies = world.bodies.filter((body) => body.isStatic);
+      World.clear(world, false);
+      staticBodies.forEach((body) => World.add(world, body));
+    }
+
+    const fruit = AddCurentFruit();
+    fruitRef.current = fruit;
+    if (engineRef.current) {
+      World.add(engineRef.current.world, fruit);
+    }
+  };
+
+  return (
+    <div style={{ position: "relative", width: "620px", margin: "0 auto" }}>
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "-40%",
+          transform: "translateX(-50%)",
+          zIndex: 1000,
+          background: "linear-gradient(135deg, #FF6B6B, #FF8E53)",
+          color: "white",
+          padding: "10px 20px",
+          borderRadius: "25px",
+          boxShadow: "0 4px 15px rgba(0, 0, 0, 0.2)",
+          fontSize: "24px",
+          fontWeight: "bold",
+          fontFamily: "Arial, sans-serif",
+          border: "3px solid #FFD93D",
+          textShadow: "2px 2px 4px rgba(0, 0, 0, 0.3)",
+          minWidth: "120px",
+          textAlign: "center",
+        }}
+      >
+        🏆 Score: {score}
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
+          top: "58%",
+          left: "-40%",
+          transform: "translateX(-50%)",
+          zIndex: 1000,
+          background: "linear-gradient(135deg, #FF8E53, #FFD93D)",
+          color: "#fff",
+          padding: "10px 24px",
+          borderRadius: "20px",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+          fontSize: "18px",
+          fontWeight: "bold",
+          fontFamily: "Arial, sans-serif",
+          border: "2px solid #FFD93D",
+          textShadow: "1px 1px 2px rgba(0, 0, 0, 0.2)",
+          minWidth: "120px",
+          textAlign: "center",
+          cursor: "pointer",
+          outline: "none",
+        }}
+        onClick={resetGame}
+      >
+        🔄 Recommencer
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
+          top: "400px",
+          right: "-350px",
+          width: "200px",
+          background: "white",
+          borderRadius: "20px",
+          boxShadow: "0 4px 15px rgba(0,0,0,0.15)",
+          padding: "20px",
+          textAlign: "center",
+          border: "2px solid #FFD93D",
+          fontFamily: "Arial, sans-serif",
+        }}
+      >
+        <h3 style={{ margin: 0, marginBottom: 10 }}>🏅 Meilleurs scores</h3>
+        {bestScores.length === 0 ? (
+          <div style={{ color: "#888" }}>
+            Pas encore d'historique de score,
+            <br />
+            fais un bon score pour figurer en haut du classement !
+          </div>
+        ) : (
+          <ol style={{ paddingLeft: 20, margin: 0 }}>
+            {bestScores.map((entry, i) => (
+              <li key={i} style={{ fontWeight: "bold", fontSize: 18 }}>
+                {entry.pseudo} — {entry.score}
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+
+      <div ref={sceneRef} />
+    </div>
+  );
 }
 
 export default App;
